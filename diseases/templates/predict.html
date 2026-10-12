@@ -1,0 +1,228 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Symptom Checker</title>
+  <link rel="stylesheet" href="{% static 'css/predict.css' %}">
+ 
+</head>
+<body>
+
+  <header class="page-head">
+    <h1>Symptom Checker</h1>
+    <p>Sabai symptoms by default <strong>0 (No)</strong> chha. Jun symptom chha tyo <strong>1 (Yes)</strong> garnus.</p>
+    <input type="search" id="search" class="search" placeholder="Symptom khojnus... (e.g. fever)" autocomplete="off">
+  </header>
+
+  <main>
+    <form id="symptom-form" novalidate>
+      {% csrf_token %}
+      <div class="grid" id="grid">
+        {% for s in symptoms %}
+          <div class="symptom">
+            <label class="symptom__name" for="s-{{ forloop.counter }}">{{ s }}</label>
+            <select id="s-{{ forloop.counter }}" name="{{ s }}" class="symptom__select">
+              <option value="0" selected>0 – No</option>
+              <option value="1">1 – Yes</option>
+            </select>
+          </div>
+        {% endfor %}
+      </div>
+      <p class="no-match" id="no-match" hidden>Kei bhetiyena.</p>
+    </form>
+  </main>
+
+  <footer class="bar">
+    <div class="bar__info">
+      <strong id="count">0</strong> / {{ symptoms|length }} selected
+      <span class="error" id="error" role="alert"></span>
+    </div>
+    <div class="bar__actions">
+      <button type="button" class="btn btn--ghost" id="reset">Reset</button>
+      <button type="button" class="btn" id="predict">Predict</button>
+    </div>
+  </footer>
+
+  <!-- Result popup -->
+  <div class="backdrop" id="backdrop">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal__tag">Most likely</div>
+      <h2 id="modal-title"></h2>
+      <h3>Top possibilities</h3>
+      <div id="top3"></div>
+      <p class="modal__note">Yo medical diagnosis hoina, sambhavit anuman matra ho. Doctor lai dekhaunus.</p>
+      <button type="button" class="btn btn--full" id="close">Close</button>
+    </div>
+  </div>
+  <script>
+ function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+
+  const form = $("symptom-form");
+  const search = $("search");
+  const countEl = $("count");
+  const errorEl = $("error");
+  const predictBtn = $("predict");
+  const backdrop = $("backdrop");
+  const noMatch = $("no-match");
+
+  const items = [...document.querySelectorAll(".symptom")];
+
+  const pretty = (s) => {
+    const t = s.replace(/_/g, " ");
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+
+  items.forEach((item) => {
+    const label = item.querySelector(".symptom__name");
+    label.textContent = pretty(label.textContent.trim());
+  });
+
+  function getSelected() {
+    // value "1" bhako symptoms ko raw naam (select ko name attribute)
+    return [...form.querySelectorAll(".symptom__select")]
+      .filter((sel) => sel.value === "1")
+      .map((sel) => sel.name);
+  }
+
+  function refresh() {
+    items.forEach((item) => {
+      const sel = item.querySelector(".symptom__select");
+      item.classList.toggle("is-yes", sel.value === "1");
+    });
+    countEl.textContent = getSelected().length;
+    errorEl.textContent = "";
+  }
+
+  form.addEventListener("change", refresh);
+
+  /* ---------- search ---------- */
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase().replace(/\s+/g, "_");
+    let visible = 0;
+
+    items.forEach((item) => {
+      const raw = item.querySelector(".symptom__select").name.toLowerCase();
+      const show = raw.includes(q);
+      item.hidden = !show;
+      if (show) visible++;
+    });
+
+    noMatch.hidden = visible > 0;
+  });
+
+  /* ---------- reset ---------- */
+  $("reset").addEventListener("click", () => {
+    form.querySelectorAll(".symptom__select").forEach((sel) => { sel.value = "0"; });
+    search.value = "";
+    items.forEach((item) => { item.hidden = false; });
+    noMatch.hidden = true;
+    refresh();
+  });
+
+  /* ---------- popup ---------- */
+  function showPopup(data) {
+    $("modal-title").textContent = data.prediction;
+
+    const box = $("top3");
+    box.innerHTML = "";
+
+    data.top3.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const top = document.createElement("div");
+      top.className = "row__top";
+      const name = document.createElement("span");
+      name.textContent = item.disease;
+      const pct = document.createElement("strong");
+      pct.textContent = item.probability + "%";
+      top.append(name, pct);
+
+      const track = document.createElement("div");
+      track.className = "bar-track";
+      const fill = document.createElement("span");
+      fill.className = "bar-fill";
+      track.appendChild(fill);
+
+      row.append(top, track);
+      box.appendChild(row);
+
+      requestAnimationFrame(() => {
+        fill.style.width = Math.min(item.probability, 100) + "%";
+      });
+    });
+
+    backdrop.classList.add("open");
+    $("close").focus();
+  }
+
+  function closePopup() {
+    backdrop.classList.remove("open");
+    predictBtn.focus();
+  }
+
+  $("close").addEventListener("click", closePopup);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) closePopup();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && backdrop.classList.contains("open")) closePopup();
+  });
+
+  /* ---------- predict (fetch) ---------- */
+  predictBtn.addEventListener("click", async () => {
+    errorEl.textContent = "";
+
+    const selected = getSelected();
+    if (!selected.length) {
+      errorEl.textContent = "Kamti ma ek symptom lai 1 (Yes) garnus.";
+      return;
+    }
+
+    const csrf = form.querySelector("[name=csrfmiddlewaretoken]").value;
+
+    predictBtn.disabled = true;
+    predictBtn.textContent = "Predicting...";
+
+    try {
+      const res = await fetch(window.location.href, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-CSRFToken": csrf,
+        },
+        body: JSON.stringify({ symptoms: selected }),
+      });
+
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+
+      if (!res.ok) {
+        errorEl.textContent = data.error || "Kehi problem bhayo, feri try garnus.";
+        return;
+      }
+      showPopup(data);
+    } catch (err) {
+      errorEl.textContent = "Network error, feri try garnus.";
+    } finally {
+      predictBtn.disabled = false;
+      predictBtn.textContent = "Predict";
+    }
+  });
+
+  refresh();
+})();
+
+
+
+
+  </script>
+
+</body>
+</html>
