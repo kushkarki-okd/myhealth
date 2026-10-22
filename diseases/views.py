@@ -5,6 +5,14 @@ from rest_framework.response import Response
 from rest_framework.renderers import TemplateHTMLRenderer, JSONRenderer
 from .services import symptoms, predict_diseases
 
+
+class home(APIView):
+    renderer_classes=[TemplateHTMLRenderer]
+    template_name="home.html"
+
+    def get(self,request):
+        return Response()
+
 class predictdiseases(APIView):
     renderer_classes=[TemplateHTMLRenderer,JSONRenderer]
     template_name="predict.html"

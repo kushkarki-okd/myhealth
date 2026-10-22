@@ -5,57 +5,176 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Symptom Checker</title>
-  <link rel="stylesheet" href="{% static 'css/predict.css' %}">
- 
-</head>
-<body>
 
-  <header class="page-head">
-    <h1>Symptom Checker</h1>
-    <p>Sabai symptoms by default <strong>0 (No)</strong> chha. Jun symptom chha tyo <strong>1 (Yes)</strong> garnus.</p>
-    <input type="search" id="search" class="search" placeholder="Symptom khojnus... (e.g. fever)" autocomplete="off">
+  <!-- Tailwind (CDN) + Inter font + Lucide icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "media",
+      theme: {
+        extend: {
+          fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+          keyframes: {
+            pop: { "0%": { opacity: 0, transform: "translateY(16px) scale(.96)" }, "100%": { opacity: 1, transform: "none" } },
+            fade: { "0%": { opacity: 0 }, "100%": { opacity: 1 } },
+          },
+          animation: { pop: "pop .25s ease-out", fade: "fade .2s ease-out" },
+        },
+      },
+    };
+  </script>
+
+  <!-- Custom styles (symptom cards, switch, tones) -->
+  <link rel="stylesheet" href="{% static 'css/predict.css' %}">
+</head>
+
+<body class="min-h-screen bg-slate-50 pb-32 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-100">
+
+  <!-- ===== Hero / Header ===== -->
+  <header class="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 pb-20 pt-10 text-white">
+    <div class="pointer-events-none absolute -left-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl"></div>
+    <div class="pointer-events-none absolute -bottom-24 right-0 h-72 w-72 rounded-full bg-fuchsia-300/20 blur-3xl"></div>
+
+    <div class="relative mx-auto max-w-5xl px-4">
+      <div class="flex items-center gap-3">
+        <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/30 backdrop-blur">
+          <i data-lucide="stethoscope" class="h-6 w-6"></i>
+        </span>
+        <div>
+          <h1 class="text-2xl font-extrabold tracking-tight sm:text-3xl">Symptom Checker</h1>
+          <p class="text-sm text-white/80">AI-powered quick health insight</p>
+        </div>
+      </div>
+
+      <p class="mt-5 flex items-start gap-2 text-sm text-white/90 sm:text-base">
+        <i data-lucide="info" class="mt-0.5 h-4 w-4 shrink-0"></i>
+        <span>Sabai symptoms by default <strong>0 (No)</strong> chha. Jun symptom chha tyo <strong>1 (Yes)</strong> garnus — card ma click garnus.</span>
+      </p>
+    </div>
   </header>
 
-  <main>
+  <!-- ===== Search (overlaps hero) ===== -->
+  <div class="relative mx-auto -mt-8 max-w-5xl px-4">
+    <div class="relative">
+      <i data-lucide="search" class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"></i>
+      <input type="search" id="search" autocomplete="off"
+             placeholder="Symptom khojnus... (e.g. fever)"
+             class="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-12 pr-4 text-base shadow-xl shadow-indigo-500/10 outline-none transition
+                    placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20
+                    dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+    </div>
+  </div>
+
+  <!-- ===== Symptom grid ===== -->
+  <main class="mx-auto max-w-5xl px-4 pt-6">
     <form id="symptom-form" novalidate>
       {% csrf_token %}
-      <div class="grid" id="grid">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" id="grid">
         {% for s in symptoms %}
-          <div class="symptom">
-            <label class="symptom__name" for="s-{{ forloop.counter }}">{{ s }}</label>
-            <select id="s-{{ forloop.counter }}" name="{{ s }}" class="symptom__select">
+          <div class="symptom" data-tone="indigo">
+            <span class="symptom__icon"><i data-lucide="activity"></i></span>
+
+            <div class="symptom__text">
+              <label class="symptom__name" for="s-{{ forloop.counter }}">{{ s }}</label>
+              <span class="symptom__status">Not present</span>
+            </div>
+
+            <span class="symptom__switch" aria-hidden="true"></span>
+
+            <!-- real select kept (hidden) so the JS + backend stay unchanged -->
+            <select id="s-{{ forloop.counter }}" name="{{ s }}" class="symptom__select sr-only">
               <option value="0" selected>0 – No</option>
               <option value="1">1 – Yes</option>
             </select>
           </div>
         {% endfor %}
       </div>
-      <p class="no-match" id="no-match" hidden>Kei bhetiyena.</p>
+
+      <div class="hidden flex-col items-center gap-2 py-16 text-slate-400" id="no-match" hidden>
+        <i data-lucide="search-x" class="h-10 w-10"></i>
+        <p class="text-sm font-medium">Kei bhetiyena.</p>
+      </div>
     </form>
   </main>
 
-  <footer class="bar">
-    <div class="bar__info">
-      <strong id="count">0</strong> / {{ symptoms|length }} selected
-      <span class="error" id="error" role="alert"></span>
-    </div>
-    <div class="bar__actions">
-      <button type="button" class="btn btn--ghost" id="reset">Reset</button>
-      <button type="button" class="btn" id="predict">Predict</button>
+  <!-- ===== Floating bottom bar ===== -->
+  <footer class="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:px-4 sm:pb-4">
+    <div class="mx-auto flex max-w-5xl flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur-xl
+                sm:flex-row sm:items-center sm:justify-between sm:p-4 dark:border-slate-700/70 dark:bg-slate-900/90">
+      <div class="flex items-center gap-3">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+          <i data-lucide="list-checks" class="h-5 w-5"></i>
+        </span>
+        <div class="leading-tight">
+          <p class="text-sm font-semibold">
+            <span id="count" class="text-lg font-extrabold text-indigo-600 dark:text-indigo-300">0</span>
+            <span class="text-slate-500 dark:text-slate-400">/ {{ symptoms|length }} selected</span>
+          </p>
+          <p class="flex min-h-[1.1rem] items-center gap-1 text-xs font-medium text-rose-500" id="error" role="alert"></p>
+        </div>
+      </div>
+
+      <div class="flex gap-2 sm:gap-3">
+        <button type="button" id="reset"
+                class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition
+                       hover:bg-slate-100 active:scale-95 sm:flex-none dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+          <i data-lucide="rotate-ccw" class="h-4 w-4"></i> Reset
+        </button>
+        <button type="button" id="predict"
+                class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-7 py-3 text-sm font-bold text-white
+                       shadow-lg shadow-indigo-500/30 transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none">
+          <i data-lucide="sparkles" class="h-4 w-4" id="predict-icon"></i>
+          <svg id="predict-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span id="predict-label">Predict</span>
+        </button>
+      </div>
     </div>
   </footer>
 
-  <!-- Result popup -->
-  <div class="backdrop" id="backdrop">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="modal__tag">Most likely</div>
-      <h2 id="modal-title"></h2>
-      <h3>Top possibilities</h3>
-      <div id="top3"></div>
-      <p class="modal__note">Yo medical diagnosis hoina, sambhavit anuman matra ho. Doctor lai dekhaunus.</p>
-      <button type="button" class="btn btn--full" id="close">Close</button>
+  <!-- ===== Result popup ===== -->
+  <div class="backdrop fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" id="backdrop">
+    <div class="modal max-h-[92vh] w-full max-w-md animate-pop overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-slate-900"
+         role="dialog" aria-modal="true" aria-labelledby="modal-title">
+
+      <div class="relative bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 px-6 pb-8 pt-6 text-white">
+        <button type="button" id="close-x" aria-label="Close"
+                class="absolute right-4 top-4 rounded-full bg-white/15 p-1.5 transition hover:bg-white/30">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-white/80">
+          <i data-lucide="trophy" class="h-4 w-4"></i> Most likely
+        </div>
+        <h2 id="modal-title" class="mt-2 text-2xl font-extrabold leading-tight"></h2>
+      </div>
+
+      <div class="-mt-4 rounded-t-3xl bg-white px-6 pb-6 pt-6 dark:bg-slate-900">
+        <h3 class="mb-4 flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <i data-lucide="bar-chart-3" class="h-4 w-4 text-indigo-500"></i> Top possibilities
+        </h3>
+        <div id="top3" class="space-y-4"></div>
+
+        <p class="modal__note mt-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800
+                  dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <i data-lucide="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0"></i>
+          <span>Yo medical diagnosis hoina, sambhavit anuman matra ho. Doctor lai dekhaunus.</span>
+        </p>
+
+        <button type="button" id="close"
+                class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 py-3 text-sm font-bold text-white transition
+                       hover:bg-slate-700 active:scale-[.98] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
+          <i data-lucide="check" class="h-4 w-4"></i> Close
+        </button>
+      </div>
     </div>
   </div>
+
   <script>
  (function () {
   "use strict";
@@ -77,13 +196,60 @@
     return t.charAt(0).toUpperCase() + t.slice(1);
   };
 
+  const renderIcons = () => window.lucide && lucide.createIcons();
+
+  /* ---------- icon + colour per symptom (keyword based) ---------- */
+  // [regex, lucide icon, tone]  — first match wins
+  const ICON_RULES = [
+    [/fever|temperature|chill|shiver|sweat|hot|warm/,                       "thermometer",  "rose"],
+    [/cough|phlegm|sputum|breath|wheez|congestion|sneez|runny|nose|nasal|sinus|throat|mucus|cold/, "wind", "sky"],
+    [/head|migraine|dizz|spinning|balance|memory|concentrat|confus|unsteady|coma|anxiety|depress|mood|irritab|mental/, "brain", "violet"],
+    [/eye|vision|sight|blur|visual|redness_of_eyes|watering/,               "eye",          "indigo"],
+    [/ear|hearing|deaf/,                                                     "ear",          "indigo"],
+    [/heart|chest|palpitat|pulse|cardiac|blood_pressure|hypertension/,       "heart-pulse",  "pink"],
+    [/urin|bladder|blood|bleed|dehydrat|thirst|polyuria|sweating|kidney|yellow_urine|dark_urine/, "droplets", "teal"],
+    [/skin|rash|itch|blister|nail|pus|scurr|peeling|bruise|acne|pimple|spots|dischromic|silver|blackhead|patches|wound|sore|nodal/, "hand", "amber"],
+    [/stomach|abdom|belly|vomit|nausea|diarr|constip|bowel|stool|digest|gas|indigest|swelling_of_stomach|passage_of_gases/, "pill", "orange"],
+    [/acidity|ulcer|burning|heartburn|internal_itching|hunger|appetite|weight|obesity/, "flame", "orange"],
+    [/fatigue|tired|lethargy|weakness|sleep|restless|malaise|drowsy|sluggish|lack_of_concentration/, "moon", "slate"],
+    [/joint|muscle|back|neck|knee|hip|bone|cramp|stiff|swelling|pain|ache|movement|walking|weakness_in_limbs/, "bone", "teal"],
+    [/liver|jaundice|yellow|gall/,                                           "activity",     "amber"],
+  ];
+
+  function pickIcon(raw) {
+    const key = raw.toLowerCase();
+    for (const [re, icon, tone] of ICON_RULES) {
+      if (re.test(key)) return { icon, tone };
+    }
+    return { icon: "activity", tone: "indigo" };
+  }
+
   items.forEach((item) => {
     const label = item.querySelector(".symptom__name");
+    const raw = item.querySelector(".symptom__select").name;
     label.textContent = pretty(label.textContent.trim());
+
+    // set icon + tone
+    const { icon, tone } = pickIcon(raw);
+    item.dataset.tone = tone;
+    item.querySelector(".symptom__icon i").setAttribute("data-lucide", icon);
+
+    // Whole card toggles the hidden select (0 <-> 1)
+    item.addEventListener("click", (e) => {
+      if (e.target.closest("label")) e.preventDefault(); // avoid double-trigger
+      const sel = item.querySelector(".symptom__select");
+      sel.value = sel.value === "1" ? "0" : "1";
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+
+      if (sel.value === "1") {
+        item.classList.remove("just-on");
+        void item.offsetWidth;          // restart animation
+        item.classList.add("just-on");
+      }
+    });
   });
 
   function getSelected() {
-    // value "1" bhako symptoms ko raw naam (select ko name attribute)
     return [...form.querySelectorAll(".symptom__select")]
       .filter((sel) => sel.value === "1")
       .map((sel) => sel.name);
@@ -92,7 +258,9 @@
   function refresh() {
     items.forEach((item) => {
       const sel = item.querySelector(".symptom__select");
-      item.classList.toggle("is-yes", sel.value === "1");
+      const yes = sel.value === "1";
+      item.classList.toggle("is-yes", yes);
+      item.querySelector(".symptom__status").textContent = yes ? "Present · Yes" : "Not present";
     });
     countEl.textContent = getSelected().length;
     errorEl.textContent = "";
@@ -113,6 +281,8 @@
     });
 
     noMatch.hidden = visible > 0;
+    noMatch.classList.toggle("hidden", visible > 0);
+    noMatch.classList.toggle("flex", visible === 0);
   });
 
   /* ---------- reset ---------- */
@@ -121,52 +291,78 @@
     search.value = "";
     items.forEach((item) => { item.hidden = false; });
     noMatch.hidden = true;
+    noMatch.classList.add("hidden");
+    noMatch.classList.remove("flex");
     refresh();
   });
 
   /* ---------- popup ---------- */
+  const RANK_STYLES = [
+    { bar: "from-indigo-500 to-violet-500", chip: "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300" },
+    { bar: "from-sky-400 to-cyan-400",      chip: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300" },
+    { bar: "from-slate-400 to-slate-500",   chip: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" },
+  ];
+
   function showPopup(data) {
     $("modal-title").textContent = data.prediction;
 
     const box = $("top3");
     box.innerHTML = "";
 
-    data.top3.forEach((item) => {
+    data.top3.forEach((item, i) => {
+      const style = RANK_STYLES[i] || RANK_STYLES[2];
+
       const row = document.createElement("div");
-      row.className = "row";
 
       const top = document.createElement("div");
-      top.className = "row__top";
+      top.className = "mb-1.5 flex items-center justify-between gap-3 text-sm";
+
+      const left = document.createElement("div");
+      left.className = "flex items-center gap-2 font-semibold";
+      const rank = document.createElement("span");
+      rank.className = "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold " + style.chip;
+      rank.textContent = i + 1;
       const name = document.createElement("span");
       name.textContent = item.disease;
+      left.append(rank, name);
+
       const pct = document.createElement("strong");
+      pct.className = "tabular-nums text-slate-700 dark:text-slate-200";
       pct.textContent = item.probability + "%";
-      top.append(name, pct);
+      top.append(left, pct);
 
       const track = document.createElement("div");
-      track.className = "bar-track";
+      track.className = "h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800";
       const fill = document.createElement("span");
-      fill.className = "bar-fill";
+      fill.className = "bar-fill block h-full w-0 rounded-full bg-gradient-to-r " + style.bar;
       track.appendChild(fill);
 
       row.append(top, track);
       box.appendChild(row);
 
       requestAnimationFrame(() => {
-        fill.style.width = Math.min(item.probability, 100) + "%";
+        requestAnimationFrame(() => {
+          fill.style.width = Math.min(item.probability, 100) + "%";
+        });
       });
     });
 
-    backdrop.classList.add("open");
+    backdrop.classList.remove("hidden");
+    backdrop.classList.add("open", "flex", "animate-fade");
+    document.body.style.overflow = "hidden";
+    renderIcons();
     $("close").focus();
   }
 
   function closePopup() {
-    backdrop.classList.remove("open");
+    backdrop.classList.remove("open", "flex", "animate-fade");
+    backdrop.classList.add("hidden");
+    document.body.style.overflow = "";
     predictBtn.focus();
   }
 
   $("close").addEventListener("click", closePopup);
+  $("close-x").addEventListener("click", closePopup);
   backdrop.addEventListener("click", (e) => {
     if (e.target === backdrop) closePopup();
   });
@@ -175,19 +371,33 @@
   });
 
   /* ---------- predict (fetch) ---------- */
+  function setLoading(on) {
+    predictBtn.disabled = on;
+    $("predict-label").textContent = on ? "Predicting..." : "Predict";
+    $("predict-spinner").classList.toggle("hidden", !on);
+    $("predict-icon").classList.toggle("hidden", on);
+  }
+
+  function showError(msg) {
+    errorEl.innerHTML = "";
+    const ic = document.createElement("i");
+    ic.setAttribute("data-lucide", "circle-alert");
+    ic.className = "h-3.5 w-3.5";
+    errorEl.append(ic, document.createTextNode(msg));
+    renderIcons();
+  }
+
   predictBtn.addEventListener("click", async () => {
     errorEl.textContent = "";
 
     const selected = getSelected();
     if (!selected.length) {
-      errorEl.textContent = "Kamti ma ek symptom lai 1 (Yes) garnus.";
+      showError("Kamti ma ek symptom lai 1 (Yes) garnus.");
       return;
     }
 
     const csrf = form.querySelector("[name=csrfmiddlewaretoken]").value;
-
-    predictBtn.disabled = true;
-    predictBtn.textContent = "Predicting...";
+    setLoading(true);
 
     try {
       const res = await fetch(window.location.href, {
@@ -204,24 +414,20 @@
       try { data = await res.json(); } catch (_) {}
 
       if (!res.ok) {
-        errorEl.textContent = data.error || "Kehi problem bhayo, feri try garnus.";
+        showError(data.error || "Kehi problem bhayo, feri try garnus.");
         return;
       }
       showPopup(data);
     } catch (err) {
-      errorEl.textContent = "Network error, feri try garnus.";
+      showError("Network error, feri try garnus.");
     } finally {
-      predictBtn.disabled = false;
-      predictBtn.textContent = "Predict";
+      setLoading(false);
     }
   });
 
   refresh();
+  renderIcons();   // must run AFTER icons/tones are assigned above
 })();
-
-
-
-
   </script>
 
 </body>
